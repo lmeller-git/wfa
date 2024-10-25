@@ -1,4 +1,4 @@
-from src.wfa import align
+from src.wfa_simple import align
 from src.parser import args, open_fasta
 from src.utils import timeit
 

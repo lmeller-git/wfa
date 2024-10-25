@@ -2,7 +2,7 @@ from Bio import SeqIO, SeqRecord, Seq
 from argparse import Namespace
 from dataclasses import dataclass
 from typing import Self
-# ifrom src import timeit
+from src.utils import timeit
 from enum import StrEnum
 
 type Records = SeqIO.FastIO.FastaIterator
@@ -10,10 +10,10 @@ type Record = SeqRecord.SeqRecord
 type Sequence = Seq.Seq
 
 
-# timeit
+@timeit
 def align(query: Records, db: Records, args: Namespace) -> None:
     global scheme
-    scheme = ScoringScheme(0, 0, 0, 0)
+    scheme = ScoringScheme(0, 2, 0, 4)
     for q in query:
         for d in db:
             ocean = Ocean(q, d, args)
@@ -67,7 +67,7 @@ class MoveIterator:
                 if self.last_move == Move.Deletion:
                     return MoveInfo(Move.Deletion, scheme.gap_extension, 1, 0)
                 else:
-                    return MoveInfo(Move.Deletion, scheme.gap_opening, 1, 0)
+                    return MoveInfo(Move.Deletion, scheme.gap_opening + scheme.gap_extension, 1, 0)
             case 1:
                 self.c += 1
                 return MoveInfo(Move.MatchMismatch, scheme.mismatch, 1, 1)
@@ -76,7 +76,7 @@ class MoveIterator:
                 if self.last_move == Move.Insertion:
                     return MoveInfo(Move.Insertion, scheme.gap_extension, 0, 1)
                 else:
-                    return MoveInfo(Move.Insertion, scheme.gap_opening, 0, 1)
+                    return MoveInfo(Move.Insertion, scheme.gap_opening + scheme.gap_extension, 0, 1)
             case _:
                 self.c = 0
                 raise StopIteration
@@ -160,6 +160,7 @@ class WaveFront:
         [print(item(q_, d_), end='') for q_, d_ in zip(q, db)]
         print()
         print(q)
+        print(self.score)
 
 
 class Ocean:
