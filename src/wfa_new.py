@@ -6,7 +6,7 @@ from src.utils import timeit
 from enum import StrEnum
 """
 implementation based on x and y coordinates with move vectors using edit distance.
-TODO use offsets, diagonals and proper backtrace
+TODO maybe remove x, y and moves
 """
 type Records = SeqIO.FastIO.FastaIterator
 type Record = SeqRecord.SeqRecord
@@ -16,7 +16,7 @@ type Sequence = Seq.Seq
 @timeit
 def align(query: Records, db: Records, args: Namespace) -> None:
     global scheme
-    scheme = ScoringScheme(0, 2, 0, 4)
+    scheme = ScoringScheme(0, 4, 0, 4)
     for q in query:
         for d in db:
             print(q.seq)
@@ -81,8 +81,8 @@ class MoveIterator:
 
 class WaveFront:
     def __init__(self, x: int, y: int, score: int, query: Sequence, db: Sequence = None, all_moves: list[Move] = [], diag: int = 0, offset: int = 0) -> None:
-        self.x = x
-        self.y = y
+        self.x_ = x
+        self.y_ = y
         self.score = score
         self.db = db
         self.query = query
@@ -90,20 +90,26 @@ class WaveFront:
         self.diag = diag
         self.offset = offset
         assert self.get_fr() == (self.diag, self.offset), f"{
-            self.get_fr()}, {(self.diag, self.offset)}, {self.x}, {self.y}"
+            self.get_fr()}, {(self.diag, self.offset)}, {self.x_}, {self.y_}"
+
+    def x(self) -> int:
+        return self.offset - min(self.diag, 0)
+
+    def y(self) -> int:
+        return self.offset + max(self.diag, 0)
 
     def expand(self) -> bool:
-        while (self.x < len(self.db) and self.y < len(self.query)) and (self.db[self.x] == self.query[self.y]):
+        while (self.x_ < len(self.db) and self.y_ < len(self.query)) and (self.db[self.x_] == self.query[self.y_]):
             assert self.get_fr() == (self.diag, self.offset), f"{
-                self.get_fr()}, {(self.diag, self.offset)}, {self.x}, {self.y}"
-            assert self.x == self.offset - \
-                min(0, self.diag), f"{self.x}, {
+                self.get_fr()}, {(self.diag, self.offset)}, {self.x_}, {self.y_}"
+            assert self.x_ == self.offset - \
+                min(0, self.diag), f"{self.x_}, {
                     self.offset - min(0, self.diag - 1)}, {self.diag}, {self.offset}"
-            assert self.y == self.offset + \
-                max(0, self.diag), f"{self.y}, {
+            assert self.y_ == self.offset + \
+                max(0, self.diag), f"{self.y_}, {
                     self.offset + max(0, self.diag)}, {self.diag}, {self.offset}"
-            self.x += 1
-            self.y += 1
+            self.x_ += 1
+            self.y_ += 1
             self.offset += 1
             self.score += scheme.match_
             self.all_moves.append(Move.MatchMismatch)
@@ -112,7 +118,7 @@ class WaveFront:
         return False
 
     def is_converged(self) -> bool:
-        return self.x == len(self.db) and self.y == len(self.query)
+        return self.x_ == len(self.db) and self.y_ == len(self.query)
 
     def pprint(self):
         db = ""
@@ -147,20 +153,56 @@ class WaveFront:
         print()
         print(db)
         print(self.score)
+        print("actual score: ", get_score(q, db))
 
     def get_fr(self) -> tuple[int, int]:
-        diag = self.y - self.x
-        offset = min(self.x, self.y)
+        diag = self.y_ - self.x_
+        offset = min(self.x_, self.y_)
         return diag, offset
 
     def __repr__(self) -> str:
-        return f"diag: {self.diag} offset: {self.offset} x: {self.x} y: {self.y}"
+        return f"diag: {self.diag} offset: {self.offset} x: {self.x_} y: {self.y_}"
 
 
 def fill_diff(parent: WaveFront, child: WaveFront, q: Sequence, db: Sequence, q_str: str, db_str: str):
-    q_ = q[parent.offset + max(parent.diag, 0):child.offset + max(child.diag, 0)] + q_str
-    db_ = db[parent.offset - min(parent.diag, 0): child.offset - min(child.diag, 0)] + db_str
+    q_ = q[parent.offset + max(parent.diag, 0)
+                               :child.offset + max(child.diag, 0)] + q_str
+    db_ = db[parent.offset - min(parent.diag, 0)
+                                 : child.offset - min(child.diag, 0)] + db_str
     return q_, db_
+
+
+def is_invalid_insertion(parent: WaveFront, child: WaveFront) -> bool:
+    if child.diag <= 0:
+        return parent.offset >= child.offset
+    if parent.offset > child.offset:
+        return True
+    if parent.db[parent.x():child.x()] != parent.query[parent.y() + 1:child.y()]:
+        return True
+    return False
+
+
+def is_invalid_deletion(parent: WaveFront, child: WaveFront) -> bool:
+    if child.diag >= 0:
+        return parent.offset >= child.offset
+    if parent.offset > child.offset:
+        return True
+    if parent.db[parent.x() + 1:child.x()] != parent.query[parent.y():child.y()]:
+        return True
+    return False
+
+
+def is_invalid_diagonal(parent: WaveFront, child: WaveFront) -> bool:
+    return parent.offset >= child.offset or parent.diag != child.diag or parent.db[parent.x() + 1:child.x()] != parent.query[parent.y() + 1:child.y()]
+
+
+def get_score(seq1: Sequence, seq2: Sequence) -> int:
+    matches = sum([1 for q, d in zip(seq1, seq2)
+                  if seq1 == seq2 and seq1 != '-'])
+    mismatches = sum([1 for q, d in zip(seq1, seq2)
+                     if q != d and q != '-' and d != '-'])
+    gaps = seq1.count('-') + seq2.count('-')
+    return scheme.match_ * matches + scheme.gap_extension * gaps + mismatches * scheme.mismatch
 
 
 class Ocean:
@@ -179,7 +221,9 @@ class Ocean:
             for wf in self.wavefronts[self.current_score]:
                 if wf.expand() or wf.is_converged():
                     wf.pprint()
+                    print(len(self.wavefronts[self.current_score]))
                     self.backtrace(wf, "", "", self.current_score)
+                    # return True
                     found = True
         if found:
             return True
@@ -193,24 +237,24 @@ class Ocean:
         gscore = self.current_score - scheme.gap_extension
         if mscore in self.wavefronts:
             for wf in self.wavefronts[mscore]:
-                wfs.append(WaveFront(wf.x + 1, wf.y + 1, self.current_score,
+                wfs.append(WaveFront(wf.x_ + 1, wf.y_ + 1, self.current_score,
                            self.query.seq, self.db.seq, wf.all_moves + [Move.MatchMismatch], wf.diag, wf.offset + 1))
         if gscore in self.wavefronts:
             for wf in self.wavefronts[gscore]:
-                wfs += [WaveFront(wf.x + 1, wf.y, self.current_score, self.query.seq, self.db.seq, wf.all_moves + [Move.Deletion], wf.diag - 1, wf.offset + 1 if wf.diag > 0 else wf.offset),
-                        WaveFront(wf.x, wf.y + 1, self.current_score, self.query.seq, self.db.seq, wf.all_moves + [Move.Insertion], wf.diag + 1, wf.offset + 1 if wf.diag < 0 else wf.offset)]
+                wfs += [WaveFront(wf.x_ + 1, wf.y_, self.current_score, self.query.seq, self.db.seq, wf.all_moves + [Move.Deletion], wf.diag - 1, wf.offset + 1 if wf.diag > 0 else wf.offset),
+                        WaveFront(wf.x_, wf.y_ + 1, self.current_score, self.query.seq, self.db.seq, wf.all_moves + [Move.Insertion], wf.diag + 1, wf.offset + 1 if wf.diag < 0 else wf.offset)]
         if len(wfs) > 0:
             self.wavefronts[self.current_score] = wfs
 
     def can_prune(self, wf: WaveFront, i: int) -> bool:
-        if wf.x > len(self.db.seq) or wf.y > len(self.query.seq):
+        if wf.x_ > len(self.db.seq) or wf.y_ > len(self.query.seq):
             return True
         d, o = wf.get_fr()
         for j, wave in enumerate(self.wavefronts[self.current_score]):
             if j == i:
                 continue
             d_, o_ = wave.get_fr()
-            if d_ == d and (o_ == o):  # or o_ > o):
+            if d_ == d and (o_ == o or o_ > o):
                 return True
         return False
 
@@ -222,50 +266,47 @@ class Ocean:
         pass
 
     def backtrace(self, wave: WaveFront, q: str, db: str, score: int) -> None:
+        # TODO there seems to be the possibility for an eternal loop. also in some conditions,
+        # false parents are chosen or the correct parents are not chosen
         if score == 0:
             q_, db_ = fill_diff(WaveFront(0, 0, 0, self.query.seq, self.db.seq, [
                                 Move.NoMove], 0, 0), wave, self.query.seq, self.db.seq, q, db)
+            if get_score(q_, db_) != self.current_score:
+                return
             print(f"found alignemnt with score {self.current_score}")
             print(f"query: {q_}")
             print("       ", end='')
             [print(' ' if q__ != d__ else '|', end='')
              for q__, d__ in zip(q_, db_)]
             print(f"\ndb:    {db_}")
+            print(f"actual score: {get_score(q_, db_)}")
             print("\n")
             return
+
         gscore = score - scheme.gap_extension
         mscore = score - scheme.mismatch
         if gscore in self.wavefronts:
             for parent in self.wavefronts[gscore]:
                 if parent.diag == wave.diag - 1:
                     # Insertion
-                    if wave.diag == 1:
-                        if parent.offset > wave.offset:
-                            continue
-                    else:
-                        if parent.offset >= wave.offset:
-                            continue
+                    if is_invalid_insertion(parent, wave):
+                        continue
                     q_, db_ = fill_diff(
                         parent, wave, self.query.seq, self.db.seq, q, db)
                     self.backtrace(parent, q_, '-' + db_, gscore)
 
                 if parent.diag == wave.diag + 1:
                     # Deletion
-                    if wave.diag == 0:
-                        if parent.offset + 1 >= wave.offset:
-                            continue
-                    else:
-                        if parent.offset >= wave.offset:
-                            continue
+                    if is_invalid_deletion(parent, wave):
+                        continue
                     q_, db_ = fill_diff(
                         parent, wave,  self.query.seq, self.db.seq, q, db)
                     self.backtrace(parent, '-' + q_, db_, gscore)
 
         if mscore in self.wavefronts:
             for parent in self.wavefronts[mscore]:
-                if parent.offset >= wave.offset:
+                if is_invalid_diagonal(parent, wave):
                     continue
-                if parent.diag == wave.diag:
-                    q_, db_ = fill_diff(
-                        parent, wave, self.query.seq, self.db.seq, q, db)
-                    self.backtrace(parent, q_, db_, mscore)
+                q_, db_ = fill_diff(
+                    parent, wave, self.query.seq, self.db.seq, q, db)
+                self.backtrace(parent, q_, db_, mscore)
