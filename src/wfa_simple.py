@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from argparse import Namespace
 from Bio import SeqIO, SeqRecord, Seq
 
+"""
+an implementation based on diagonals and offset values using edit distance 
+"""
 
 type Records = SeqIO.FastIO.FastaIterator
 type Record = SeqRecord.SeqRecord

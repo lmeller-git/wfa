@@ -6,6 +6,10 @@ from src.utils import timeit
 from enum import StrEnum
 from collections import defaultdict
 
+"""
+diagonal and offsets impkementation for gap affine scoring 
+"""
+
 type Records = SeqIO.FastIO.FastaIterator
 type Record = SeqRecord.SeqRecord
 type Sequence = Seq.Seq
