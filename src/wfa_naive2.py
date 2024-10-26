@@ -13,7 +13,7 @@ type Sequence = Seq.Seq
 @timeit
 def align(query: Records, db: Records, args: Namespace) -> None:
     global scheme
-    scheme = ScoringScheme(0, 2, 0, 4)
+    scheme = ScoringScheme(0, 2, 2, 8)
     for q in query:
         for d in db:
             print(q.seq)
@@ -44,37 +44,6 @@ class Move(StrEnum):
     Deletion = "deletion"
     MatchMismatch = "match_mismatch"
     NoMove = "none"
-
-
-@dataclass
-class MoveInfo:
-    move: Move
-    dscore: int
-    dx: int
-    dy: int
-
-
-class MoveIterator:
-
-    def __init__(self):
-        self.c = 0
-
-    def __iter__(self) -> Self:
-        return self
-
-    def __next__(self) -> MoveInfo:
-        match self.c:
-            case 0:
-                self.c += 1
-                return MoveInfo(Move.Deletion, scheme.gap_extension, 1, 0)
-            case 1:
-                self.c += 1
-                return MoveInfo(Move.MatchMismatch, scheme.mismatch, 1, 1)
-            case 2:
-                self.c += 1
-                return MoveInfo(Move.Insertion, scheme.gap_extension, 0, 1)
-            case _:
-                raise StopIteration
 
 
 class WaveFront:
@@ -175,7 +144,11 @@ class Ocean:
         wfs = []
         self.current_score += 1
         mscore = self.current_score - scheme.mismatch
-        gscore = self.current_score - scheme.gap_extension
+        def dgscore(mv1, mv2): return scheme.gap_opening + \
+            scheme.gap_extension if mv1 != mv2 else scheme.gap_extension
+        gescore = self.current_score - dgscore(Move.Insertion, Move.Insertion)
+        gscore = self.current_score - \
+            dgscore(Move.MatchMismatch, Move.Insertion)
         if mscore in self.wavefronts:
             # print("y", len(self.wavefronts[mscore]))
             for wf in self.wavefronts[mscore]:
@@ -184,8 +157,22 @@ class Ocean:
         if gscore in self.wavefronts:
             # print("yu", len(self.wavefronts[gscore]))
             for wf in self.wavefronts[gscore]:
-                wfs += [WaveFront(wf.x + 1, wf.y, self.current_score, self.query.seq, self.db.seq, wf.all_moves + [Move.Deletion]),
-                        WaveFront(wf.x, wf.y + 1, self.current_score, self.query.seq, self.db.seq, wf.all_moves + [Move.Insertion])]
+                if wf.all_moves[-1] != Move.Deletion:
+                    wfs.append(WaveFront(wf.x + 1, wf.y, self.current_score,
+                                         self.query.seq, self.db.seq, wf.all_moves + [Move.Deletion]))
+                if wf.all_moves[-1] != Move.Insertion:
+                    wfs.append(WaveFront(wf.x, wf.y + 1, self.current_score,
+                               self.query.seq, self.db.seq, wf.all_moves + [Move.Insertion]))
+        if gescore in self.wavefronts:
+            # print("wtf")
+            for wf in self.wavefronts[gescore]:
+                if wf.all_moves[-1] == Move.Deletion:
+                    wfs.append(WaveFront(wf.x + 1, wf.y, self.current_score,
+                                         self.query.seq, self.db.seq, wf.all_moves + [Move.Deletion]))
+                if wf.all_moves[-1] == Move.Insertion:
+                    wfs.append(WaveFront(wf.x, wf.y + 1, self.current_score,
+                               self.query.seq, self.db.seq, wf.all_moves + [Move.Insertion]))
+
         if len(wfs) > 0:
             self.wavefronts[self.current_score] = wfs
 
