@@ -1,0 +1,11 @@
+when comparing the sequences:
+q1 = ACGAGT
+db1 = ACGTACGT
+q2 = ACGTACGT
+db2 = ACGTACGT
+q3 = ACTACGT
+db3 = ACGTACGT
+only the last case gets a false result, indicating a problem with up/left logic
+second is fine -> diag likely correct -> fill likely correct
+first is fine -> gaps in query handled correctly -> left correct?
+third flase -> wtf???
