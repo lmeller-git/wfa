@@ -63,7 +63,7 @@ def plot(ocean, q_id: str, db_id: str, p: str, q: Sequence, db: Sequence) -> Non
     ani = animation.FuncAnimation(
         fig, update, frames=range(ocean.current_score + 11), blit=False, cache_frame_data=True, interval=10, repeat=True, repeat_delay=100)
     plt.show()
-    ani.save(f"{p}_{q_id}|{db_id}.gif", writer="pillow")
+    #ani.save(f"{p}_{q_id}|{db_id}.gif", writer="pillow")
 
 
 def save_datapoint(x: int, y: int, val: int) -> None:
