@@ -19,6 +19,7 @@ type Sequence = Seq.Seq
 @timeit
 def plot_align(query: Records, db: Records, args: Namespace) -> None:
     global scheme, data
+    db = list(db)
     scheme = ScoringScheme(0, 4, 0, 8)
     for i, q in enumerate(query):
         for j, d in enumerate(db):
@@ -30,7 +31,7 @@ def plot_align(query: Records, db: Records, args: Namespace) -> None:
                 ocean.prune()
                 pass
             data -= 10
-            data = data
+            data = data.T
 
             # plt.imshow(data, cmap="viridis", vmin=data.min(),
             #           vmax=data.max(), aspect="equal")
@@ -39,8 +40,8 @@ def plot_align(query: Records, db: Records, args: Namespace) -> None:
 
 
 def plot(ocean, q_id: str, db_id: str, p: str, q: Sequence, db: Sequence) -> None:
-    ylabel = [' '] + [d for d in db]
-    xlabel = [' '] + [q_ for q_ in q]
+    xlabel = [' '] + [d for d in db]
+    ylabel = [' '] + [q_ for q_ in q]
     datal = np.zeros_like(data)
     fig, ax = plt.subplots()
     cax = ax.imshow(datal, cmap="viridis",
@@ -49,7 +50,6 @@ def plot(ocean, q_id: str, db_id: str, p: str, q: Sequence, db: Sequence) -> Non
     ax.set_xticks(np.arange(len(xlabel)))
     ax.set_yticks(np.arange(len(ylabel)))
 
-    # Set labels for x and y axes
     ax.set_xticklabels(xlabel)
     ax.set_yticklabels(ylabel)
 
@@ -63,7 +63,7 @@ def plot(ocean, q_id: str, db_id: str, p: str, q: Sequence, db: Sequence) -> Non
     ani = animation.FuncAnimation(
         fig, update, frames=range(ocean.current_score + 11), blit=False, cache_frame_data=True, interval=10, repeat=True, repeat_delay=100)
     plt.show()
-    #ani.save(f"{p}_{q_id}|{db_id}.gif", writer="pillow")
+    ani.save(f"{p}_{q_id}|{db_id}.gif", writer="pillow")
 
 
 def save_datapoint(x: int, y: int, val: int) -> None:
@@ -153,7 +153,7 @@ class WaveFront:
         print()
         print(db)
         print(self.score)
-        print("actual score: ", get_score(q, db))
+        print(f"actual score: {get_score(q, db)}")
 
     def get_fr(self) -> tuple[int, int]:
         diag = self.y() - self.x()
@@ -165,8 +165,10 @@ class WaveFront:
 
 
 def fill_diff(parent: WaveFront, child: WaveFront, q: Sequence, db: Sequence, q_str: str, db_str: str) -> tuple[str, str]:
-    q_ = q[parent.offset + max(parent.diag, 0)           :child.offset + max(child.diag, 0)] + q_str
-    db_ = db[parent.offset - min(parent.diag, 0)             : child.offset - min(child.diag, 0)] + db_str
+    q_ = q[parent.offset + max(parent.diag, 0)
+                               :child.offset + max(child.diag, 0)] + q_str
+    db_ = db[parent.offset - min(parent.diag, 0)
+                                 : child.offset - min(child.diag, 0)] + db_str
     return q_, db_
 
 
@@ -221,7 +223,7 @@ class Ocean:
                     wf.pprint()
                     # print(len(self.wavefronts[self.current_score]))
                     # self.backtrace(wf, "", "", self.current_score)
-                    # return True
+                    return True
                     found = True
         if found:
             return True
@@ -250,7 +252,7 @@ class Ocean:
         for j, wave in enumerate(self.wavefronts[self.current_score]):
             if j == i:
                 continue
-            if wf.diag == wave.diag and (wave.offset > wf.offset):
+            if wf.diag == wave.diag and (wave.offset >= wf.offset):
                 return True
         return False
 
@@ -263,7 +265,6 @@ class Ocean:
 
 
 ### Optional ###
-
 
     def backtrace(self, wave: WaveFront, q: str, db: str, score: int) -> None:
         # TODO there seems to be the possibility for an eternal loop. also in some conditions,
@@ -288,7 +289,6 @@ class Ocean:
         if gscore in self.wavefronts:
             for parent in self.wavefronts[gscore]:
                 if parent.diag == wave.diag - 1:
-                    # Insertion
                     if is_invalid_insertion(parent, wave):
                         continue
                     q_, db_ = fill_diff(
@@ -296,7 +296,6 @@ class Ocean:
                     self.backtrace(parent, q_, '-' + db_, gscore)
 
                 if parent.diag == wave.diag + 1:
-                    # Deletion
                     if is_invalid_deletion(parent, wave):
                         continue
                     q_, db_ = fill_diff(

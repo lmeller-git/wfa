@@ -20,6 +20,7 @@ type Sequence = Seq.Seq
 def align(query: Records, db: Records, args: Namespace) -> None:
     global scheme
     scheme = ScoringScheme(0, 4, 0, 4)
+    db = list(db)
     for q in query:
         for d in db:
             print(q.seq)
@@ -129,11 +130,11 @@ class WaveFront:
             assert self.x_ == self.offset - min(
                 0, self.diag
             ), f"{self.x_}, {
-                    self.offset - min(0, self.diag - 1)}, {self.diag}, {self.offset}"
+                self.offset - min(0, self.diag - 1)}, {self.diag}, {self.offset}"
             assert self.y_ == self.offset + max(
                 0, self.diag
             ), f"{self.y_}, {
-                    self.offset + max(0, self.diag)}, {self.diag}, {self.offset}"
+                self.offset + max(0, self.diag)}, {self.diag}, {self.offset}"
             self.x_ += 1
             self.y_ += 1
             self.offset += 1
@@ -229,12 +230,14 @@ class SemiWaveFront(WaveFront):
         return False
 
     def fill_last_row(self) -> None:
-        self.all_moves += [Move.Deletion for i in range(len(self.db) - self.x())]
+        self.all_moves += [
+            Move.Deletion for i in range(len(self.db) - self.x())]
         self.x_ = len(self.db)
         self.diag, self.offset = self.get_fr()
 
     def fill_last_col(self) -> None:
-        self.all_moves += [Move.Insertion for i in range(len(self.query) - self.y())]
+        self.all_moves += [Move.Insertion for i in range(
+            len(self.query) - self.y())]
         self.y_ = len(self.query)
         self.diag, self.offset = self.get_fr()
 
@@ -266,11 +269,13 @@ def fill_diff(
     db_str: str,
 ):
     q_ = (
-        q[parent.offset + max(parent.diag, 0) : child.offset + max(child.diag, 0)]
+        q[parent.offset + max(parent.diag, 0)
+                              : child.offset + max(child.diag, 0)]
         + q_str
     )
     db_ = (
-        db[parent.offset - min(parent.diag, 0) : child.offset - min(child.diag, 0)]
+        db[parent.offset - min(parent.diag, 0)
+                               : child.offset - min(child.diag, 0)]
         + db_str
     )
     return q_, db_
@@ -281,7 +286,7 @@ def is_invalid_insertion(parent: WaveFront, child: WaveFront) -> bool:
         return parent.offset >= child.offset
     if parent.offset > child.offset:
         return True
-    if parent.db[parent.x() : child.x()] != parent.query[parent.y() + 1 : child.y()]:
+    if parent.db[parent.x(): child.x()] != parent.query[parent.y() + 1: child.y()]:
         return True
     return False
 
@@ -291,7 +296,7 @@ def is_invalid_deletion(parent: WaveFront, child: WaveFront) -> bool:
         return parent.offset >= child.offset
     if parent.offset > child.offset:
         return True
-    if parent.db[parent.x() + 1 : child.x()] != parent.query[parent.y() : child.y()]:
+    if parent.db[parent.x() + 1: child.x()] != parent.query[parent.y(): child.y()]:
         return True
     return False
 
@@ -300,13 +305,14 @@ def is_invalid_diagonal(parent: WaveFront, child: WaveFront) -> bool:
     return (
         parent.offset >= child.offset
         or parent.diag != child.diag
-        or parent.db[parent.x() + 1 : child.x()]
-        != parent.query[parent.y() + 1 : child.y()]
+        or parent.db[parent.x() + 1: child.x()]
+        != parent.query[parent.y() + 1: child.y()]
     )
 
 
 def get_score(seq1: Sequence, seq2: Sequence) -> int:
-    matches = sum([1 for q, d in zip(seq1, seq2) if seq1 == seq2 and seq1 != "-"])
+    matches = sum([1 for q, d in zip(seq1, seq2)
+                  if seq1 == seq2 and seq1 != "-"])
     mismatches = sum(
         [1 for q, d in zip(seq1, seq2) if q != d and q != "-" and d != "-"]
     )
@@ -491,7 +497,8 @@ class Ocean:
             print(f"found alignemnt with score {self.current_score}")
             print(f"query: {q_}")
             print("       ", end="")
-            [print(" " if q__ != d__ else "|", end="") for q__, d__ in zip(q_, db_)]
+            [print(" " if q__ != d__ else "|", end="")
+             for q__, d__ in zip(q_, db_)]
             print(f"\ndb:    {db_}")
             print(f"actual score: {get_score(q_, db_)}")
             print("\n")
@@ -523,5 +530,6 @@ class Ocean:
             for parent in self.wavefronts[mscore]:
                 if is_invalid_diagonal(parent, wave):
                     continue
-                q_, db_ = fill_diff(parent, wave, self.query.seq, self.db.seq, q, db)
+                q_, db_ = fill_diff(
+                    parent, wave, self.query.seq, self.db.seq, q, db)
                 self.backtrace(parent, q_, db_, mscore)
